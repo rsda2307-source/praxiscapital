@@ -1,0 +1,5 @@
+/* 1. Importa a biblioteca de ícones */
+@import url('/assets/css/fontawesome-all.min.css'); 
+
+/* 2. Importa o CSS principal do Editorial. */
+@import url('/assets/css/main.css');
