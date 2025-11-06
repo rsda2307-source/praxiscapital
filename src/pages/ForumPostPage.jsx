@@ -74,7 +74,8 @@ function ForumPostPage({ db, auth, userId }) {
 
         // 2. Carrega os Comentários (Sub-coleção)
         const commentsColRef = collection(db, 'forum-threads', postId, 'comments');
-        const commentsQuery = query(commentsColRef, orderBy('createdAt', 'asc')); // Mais antigos primeiro
+        // Mais antigos primeiro para manter a ordem da discussão
+        const commentsQuery = query(commentsColRef, orderBy('createdAt', 'asc')); 
 
         const unsubscribeComments = onSnapshot(commentsQuery, (snapshot) => {
             const fetchedComments = [];
@@ -90,7 +91,7 @@ function ForumPostPage({ db, auth, userId }) {
             unsubscribeComments();
         };
 
-    }, [db, postId]); // Re-executa se o ID do post na URL mudar
+    }, [db, postId]);
 
     // Função para postar um novo comentário
     const handlePostComment = async (e) => {
@@ -127,62 +128,85 @@ function ForumPostPage({ db, auth, userId }) {
 
 
     // Renderização condicional
-    if (loading) return <p>Carregando discussão...</p>;
-    if (error) return <p style={{ color: 'red' }}>{error}</p>;
+    if (loading) return <p className="loading-message">Carregando discussão...</p>;
+    if (error) return <p className="error-message" style={{ color: 'red' }}>{error}</p>;
     if (!thread) return <p>Tópico não encontrado.</p>;
+
+    // Helper para formatar data
+    const formatDate = (timestamp) => {
+        if (!timestamp) return '...';
+        return new Date(timestamp.seconds * 1000).toLocaleString('pt-BR');
+    };
 
     // Renderização principal
     return (
         <section>
             {/* --- O Tópico Original --- */}
-            <header className="major">
-                <h1>{thread.title}</h1>
-            </header>
-            <p style={{ borderBottom: '1px solid #eee', paddingBottom: '1rem', marginBottom: '1rem', color: '#555' }}>
-                Postado por: <strong>{thread.authorUsername}</strong>
-                <br />
-                Em: {thread.createdAt ? new Date(thread.createdAt.seconds * 1000).toLocaleString() : '...'}
-            </p>
-            
-            {/* Imagem (se houver) */}
-            {thread.imageUrl && (
-                <span className="image main" style={{ marginBottom: '2rem' }}>
-                    <img src={thread.imageUrl} alt={thread.title} />
-                </span>
-            )}
-            
-            {/* O Texto principal do tópico */}
-            <div className="post-content" style={{ fontSize: '1.1em', lineHeight: 1.6 }}>
-                {/* Usamos whiteSpace 'pre-wrap' para respeitar quebras de linha do textarea */}
-                <p style={{ whiteSpace: 'pre-wrap' }}>{thread.mainComment}</p>
+            <div style={{ backgroundColor: '#fff', padding: '3rem', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.05)' }}>
+                <header className="major" style={{ borderBottom: 'none', marginBottom: '1.5rem' }}>
+                    <h1 style={{ fontSize: '2.5em', margin: 0 }}>{thread.title}</h1>
+                </header>
+                
+                {/* Meta Dados do Post */}
+                <div style={{ borderBottom: '1px solid #eee', paddingBottom: '1rem', marginBottom: '2rem', color: '#777', fontSize: '0.9em' }}>
+                    <i className="icon solid fa-user"></i> Postado por: <strong>{thread.authorUsername}</strong>
+                    {' '} | {' '}
+                    <i className="icon solid fa-calendar"></i> Em: {formatDate(thread.createdAt)}
+                </div>
+                
+                {/* Imagem (se houver) */}
+                {thread.imageUrl && (
+                    <span className="image main" style={{ marginBottom: '2.5rem' }}>
+                        <img src={thread.imageUrl} alt={thread.title} style={{ borderRadius: '6px' }} />
+                    </span>
+                )}
+                
+                {/* O Texto principal do tópico */}
+                <div className="post-content" style={{ fontSize: '1.1em', lineHeight: 1.7, color: '#333' }}>
+                    {/* Usamos whiteSpace 'pre-wrap' para respeitar quebras de linha do textarea */}
+                    <p style={{ whiteSpace: 'pre-wrap' }}>{thread.mainComment}</p>
+                </div>
             </div>
 
-            <hr style={{ margin: '3rem 0' }} />
+            <hr style={{ margin: '4rem 0' }} />
 
             {/* --- Seção de Comentários --- */}
             <div className="comments-section">
-                <h3>Respostas</h3>
+                <h2 style={{ marginBottom: '2rem', borderBottom: '2px solid #f7a73f', display: 'inline-block', paddingBottom: '0.5rem' }}>
+                    <i className="icon solid fa-reply"></i> Respostas ({comments.length})
+                </h2>
 
                 {/* Lista de Comentários */}
-                {comments.length === 0 && <p>Nenhum comentário ainda. Seja o primeiro!</p>}
+                {comments.length === 0 && <p style={{ padding: '1rem', backgroundColor: '#f0f0f0', borderRadius: '6px' }}>Nenhum comentário ainda. Seja o primeiro a participar da discussão!</p>}
 
-                {comments.map(comment => (
-                    <div key={comment.id} style={{ border: '1px solid #eee', borderRadius: '4px', padding: '1rem', marginBottom: '1rem' }}>
-                        {/* Respeita quebras de linha no comentário */}
-                        <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{comment.text}</p>
-                        <small style={{ color: '#555', paddingTop: '0.5rem', display: 'block' }}>
-                            Por: <strong>{comment.authorUsername}</strong> 
-                            {comment.createdAt && ` - ${new Date(comment.createdAt.seconds * 1000).toLocaleString()}`}
-                        </small>
-                    </div>
-                ))}
+                <div className="comment-list" style={{ display: 'grid', gap: '1.5rem' }}>
+                    {comments.map(comment => (
+                        <div 
+                            key={comment.id} 
+                            style={{ 
+                                borderLeft: '3px solid #f7a73f', 
+                                backgroundColor: '#fff', 
+                                borderRadius: '6px', 
+                                padding: '1.5rem', 
+                                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.03)' 
+                            }}
+                        >
+                            {/* Respeita quebras de linha no comentário */}
+                            <p style={{ whiteSpace: 'pre-wrap', margin: '0 0 1rem 0', fontSize: '1em', color: '#444' }}>{comment.text}</p>
+                            <small style={{ color: '#888', display: 'block', borderTop: '1px solid #eee', paddingTop: '0.5rem' }}>
+                                <i className="icon solid fa-user-circle"></i> Por: <strong>{comment.authorUsername}</strong> 
+                                {comment.createdAt && ` - ${formatDate(comment.createdAt)}`}
+                            </small>
+                        </div>
+                    ))}
+                </div>
 
                 {/* Formulário de Novo Comentário */}
-                <div style={{ marginTop: '2rem', padding: '1.5rem', backgroundColor: '#f9f9f9', borderRadius: '6px' }}>
-                    <h4>Deixar uma Resposta</h4>
+                <div style={{ marginTop: '3rem', padding: '2rem', backgroundColor: '#f9f9f9', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)' }}>
+                    <h4><i className="icon solid fa-plus-circle"></i> Adicionar Comentário</h4>
                     {!currentUserProfile && isAuthReady && (
-                        <p style={{color: 'red'}}>
-                            Você precisa <Link to="/cadastro" style={{color: 'blue'}}>cadastrar seu perfil</Link> para poder comentar.
+                        <p style={{color: '#c0392b', padding: '0.5rem', border: '1px solid #c0392b', borderRadius: '4px'}}>
+                            Você precisa <Link to="/cadastro" style={{color: '#c0392b', fontWeight: 'bold'}}>cadastrar seu perfil</Link> para poder comentar.
                         </p>
                     )}
 
@@ -194,13 +218,13 @@ function ForumPostPage({ db, auth, userId }) {
                                     id="newComment" 
                                     rows="3" 
                                     value={newComment}
-                                    // ESTA É A LINHA CORRIGIDA:
                                     onChange={(e) => setNewComment(e.target.value)}
+                                    placeholder={`Comentando como ${currentUserProfile.username}...`}
                                 ></textarea>
                             </div>
                             {formError && <p style={{ color: 'red' }}>{formError}</p>}
                             <ul className="actions">
-                                <li><button type="submit" className="button primary">Postar Comentário</button></li>
+                                <li><button type="submit" className="button primary">Postar Resposta</button></li>
                             </ul>
                         </form>
                     )}

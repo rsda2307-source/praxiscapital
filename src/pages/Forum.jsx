@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom'; 
 import { collection, query, onSnapshot, orderBy, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 
 /**
- * Página Principal do Fórum: Lista de Tópicos e Formulário de Criação
+ * Página Principal do Fórum: Lista de Tópicos, Pesquisa e Formulário de Criação
  */
 function ForumPage({ db, auth, userId }) {
     const [threads, setThreads] = useState([]); // Lista de tópicos
@@ -17,8 +17,11 @@ function ForumPage({ db, auth, userId }) {
     const [newImageUrl, setNewImageUrl] = useState('');
     const [formError, setFormError] = useState(null);
     
+    // Estado da Pesquisa
+    const [searchTerm, setSearchTerm] = useState('');
+    
     const isAuthReady = db && auth && userId;
-    const navigate = useNavigate(); // Para navegar após criar o post
+    const navigate = useNavigate();
 
     // Efeito 1: Carregar o perfil do usuário atual
     useEffect(() => {
@@ -41,7 +44,8 @@ function ForumPage({ db, auth, userId }) {
         if (!db) return;
 
         const threadsColRef = collection(db, 'forum-threads');
-        const threadsQuery = query(threadsColRef, orderBy('createdAt', 'desc')); // Mais novos primeiro
+        // Ordena por data de criação (mais novos primeiro)
+        const threadsQuery = query(threadsColRef, orderBy('createdAt', 'desc')); 
 
         const unsubscribe = onSnapshot(threadsQuery, (snapshot) => {
             const fetchedThreads = [];
@@ -58,6 +62,18 @@ function ForumPage({ db, auth, userId }) {
 
         return () => unsubscribe();
     }, [db]);
+
+    // Filtrar Tópicos Baseado no Termo de Pesquisa (Memoized para performance)
+    const filteredThreads = useMemo(() => {
+        if (!searchTerm) {
+            return threads;
+        }
+        const lowerCaseSearch = searchTerm.toLowerCase();
+        return threads.filter(thread => 
+            thread.title.toLowerCase().includes(lowerCaseSearch) ||
+            thread.mainComment.toLowerCase().includes(lowerCaseSearch)
+        );
+    }, [threads, searchTerm]);
 
     // Função para criar um novo tópico
     const handleCreateThread = async (e) => {
@@ -78,10 +94,10 @@ function ForumPage({ db, auth, userId }) {
             const docRef = await addDoc(threadsColRef, {
                 title: newTitle,
                 mainComment: newMainComment,
-                imageUrl: newImageUrl || null, // Salva null se vazio
+                imageUrl: newImageUrl || null,
                 
                 authorId: userId,
-                authorUsername: currentUserProfile.username, // Pego do perfil
+                authorUsername: currentUserProfile.username,
                 
                 createdAt: serverTimestamp(),
             });
@@ -102,17 +118,17 @@ function ForumPage({ db, auth, userId }) {
 
     return (
         <section>
-            <header className="major">
-                <h1>Fórum de Discussão</h1>
+            <header className="major" style={{ borderBottom: 'none' }}>
+                <h1 style={{ marginBottom: '1rem' }}>Fórum de Discussão <i className="icon solid fa-comments" style={{ color: '#F7A73F' }}></i></h1>
             </header>
 
-            {/* --- Formulário de Novo Tópico --- */}
-            <div style={{ padding: '2rem', backgroundColor: '#f9f9f9', borderRadius: '6px' }}>
-                <h3>Criar Novo Tópico</h3>
+            {/* --- Formulário de Novo Tópico (Estilizado como Card) --- */}
+            <div style={{ padding: '2rem', backgroundColor: '#f9f9f9', borderRadius: '8px', marginBottom: '3rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)' }}>
+                <h3>Iniciar um Novo Debate</h3>
                 
                 {!currentUserProfile && isAuthReady && (
-                    <p style={{color: 'red'}}>
-                        Você precisa <Link to="/cadastro" style={{color: 'blue'}}>cadastrar seu perfil</Link> para poder criar tópicos.
+                    <p style={{color: '#c0392b', padding: '0.5rem', border: '1px solid #c0392b', borderRadius: '4px'}}>
+                        <i className="icon solid fa-exclamation-triangle"></i> Você precisa <Link to="/cadastro" style={{color: '#c0392b', fontWeight: 'bold'}}>cadastrar seu perfil</Link> para poder criar tópicos.
                     </p>
                 )}
                 
@@ -158,32 +174,64 @@ function ForumPage({ db, auth, userId }) {
                 )}
             </div>
 
+            {/* --- Barra de Pesquisa --- */}
+            <div style={{ marginBottom: '2rem' }}>
+                <label htmlFor="forum-search" style={{ fontSize: '1.2em', fontWeight: 'bold' }}>
+                    <i className="icon solid fa-search"></i> Pesquisar Tópicos
+                </label>
+                <input
+                    type="text"
+                    id="forum-search"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Digite o título ou palavra-chave para filtrar..."
+                />
+            </div>
+            
             {/* --- Lista de Tópicos Existentes --- */}
-            <div style={{ marginTop: '3rem' }}>
-                <h3>Tópicos Abertos</h3>
+            <div style={{ marginTop: '1rem' }}>
+                <h3>{searchTerm ? `Resultados da Pesquisa (${filteredThreads.length})` : 'Tópicos Mais Recentes'}</h3>
+                
                 {loading && <p>Carregando tópicos...</p>}
                 {error && <p style={{ color: 'red' }}>{error}</p>}
                 
-                <div className="posts-list" style={{ listStyle: 'none', padding: 0 }}>
-                    {threads.map(thread => (
-                        <article key={thread.id} style={{ borderBottom: '1px solid #eee', padding: '1rem 0' }}>
-                            <h4>
-                                {/* O Link para a página de detalhes */}
-                                <Link to={`/forum/${thread.id}`}>
-                                    {thread.title}
-                                </Link>
-                            </h4>
-                            <small>
-                                Postado por: <strong>{thread.authorUsername || 'Anônimo'}</strong> 
-                                em {thread.createdAt ? new Date(thread.createdAt.seconds * 1000).toLocaleDateString() : ''}
-                            </small>
-                            <p style={{ margin: '0.5rem 0 0 0' }}>
-                                {thread.mainComment.substring(0, 150)}...
+                {filteredThreads.length === 0 && !loading && <p>Nenhum tópico encontrado com o termo: <strong>{searchTerm}</strong></p>}
+                
+                <div className="posts-list" style={{ display: 'grid', gap: '1rem' }}>
+                    {filteredThreads.map(thread => (
+                        <article 
+                            key={thread.id} 
+                            style={{ 
+                                border: '1px solid #ddd', 
+                                borderRadius: '8px', 
+                                padding: '1.5rem', 
+                                transition: 'transform 0.2s, box-shadow 0.2s',
+                                backgroundColor: '#fff'
+                            }}
+                            onMouseOver={e => {e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 6px 10px rgba(0, 0, 0, 0.1)';}}
+                            onMouseOut={e => {e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none';}}
+                        >
+                            <header>
+                                <h4 style={{ margin: 0, fontSize: '1.5em', color: '#444' }}>
+                                    <Link to={`/forum/${thread.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                        {thread.title}
+                                    </Link>
+                                </h4>
+                                <small style={{ color: '#888', display: 'block', marginTop: '0.25rem' }}>
+                                    <i className="icon solid fa-user-circle"></i> Por: <strong>{thread.authorUsername || 'Anônimo'}</strong> 
+                                    {' '} | {' '}
+                                    <i className="icon solid fa-clock"></i> Em {thread.createdAt ? new Date(thread.createdAt.seconds * 1000).toLocaleDateString('pt-BR') : ''}
+                                </small>
+                            </header>
+                            
+                            <p style={{ margin: '1rem 0 0 0', color: '#555' }}>
+                                {thread.mainComment.substring(0, 150)}{thread.mainComment.length > 150 ? '...' : ''}
                             </p>
+                            
                             <ul className="actions" style={{ marginTop: '1rem' }}>
                                 <li>
-                                    <Link to={`/forum/${thread.id}`} className="button small">
-                                        Ver Discussão
+                                    <Link to={`/forum/${thread.id}`} className="button small primary">
+                                        Ver Discussão <i className="icon solid fa-arrow-right"></i>
                                     </Link>
                                 </li>
                             </ul>
