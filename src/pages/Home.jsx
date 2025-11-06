@@ -127,7 +127,7 @@ function Home({ userId, db }) {
                     </ul>
                 </div>
                 <span className="image object">
-                    <img src="assets/images/1718965016362.png" alt="" />
+                    <img src="/images/1718965016362.png" alt="" />
                 </span>
             </section>
 
